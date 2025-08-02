@@ -1,21 +1,31 @@
 import React from 'react';
+// Make sure to install leaflet if you haven't: npm install leaflet
+// You might also need its types: npm install @types/leaflet
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 
+// --- Main CrimeMap Component ---
 const CrimeMap = () => {
+  // --- Refs and State ---
   const mapContainer = React.useRef(null);
   const map = React.useRef(null);
   const [isMapLoaded, setIsMapLoaded] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [showFilters, setShowFilters] = React.useState(false);
-  const [selectedPriority, setSelectedPriority] = React.useState('all');
+  const [selectedPriority, setSelectedPriority] = React.useState('all'); // FIXED: Was selectedSeverity
   const [crimeMarkers, setCrimeMarkers] = React.useState([]);
   const [allCrimes, setAllCrimes] = React.useState([]);
-  const [errorMessage, setErrorMessage] = React.useState('');
+  const [errorMessage, setErrorMessage] = React.useState(''); // ADDED: For better error UI
 
+  // --- Supabase Data Fetching ---
+  /**
+   * Fetches crime reports and their associated categories from Supabase.
+   * It performs a JOIN operation to get the category name for each report.
+   */
   const fetchCrimes = async () => {
     try {
+      // FIXED: The query now joins 'crime_reports' with 'crime_categories'.
       const { data, error } = await supabase
         .from('crime_reports')
         .select(`
@@ -31,14 +41,16 @@ const CrimeMap = () => {
 
       if (data) {
         setAllCrimes(data);
-        setErrorMessage('');
+        setErrorMessage(''); // Clear any previous errors
       }
     } catch (error) {
       console.error('Error fetching crime data:', error);
+      // FIXED: Use state for non-blocking error messages instead of alert()
       setErrorMessage('Failed to fetch crime data. Please try again later.');
     }
   };
 
+  // --- Leaflet Map Resource Loading ---
   const loadLeafletResources = () => {
     return new Promise((resolve) => {
       if (window.L) {
@@ -56,6 +68,7 @@ const CrimeMap = () => {
     });
   };
 
+  // --- Map Initialization ---
   const initializeMap = async () => {
     if (!mapContainer.current || map.current) return;
 
@@ -102,12 +115,14 @@ const CrimeMap = () => {
     setIsMapLoaded(true);
   };
 
+  // --- Custom Marker Icon Creation ---
+  // FIXED: Simplified to match working code; relies on 'priority'
   const createCustomIcon = (priority) => {
     const priorityColors = {
-      'low': '#eab308',
-      'medium': '#f97316',
-      'high': '#f43f5e',
-      'urgent': '#ef4444'
+      'low': '#eab308',     // Yellow
+      'medium': '#f97316',  // Orange
+      'high': '#f43f5e',    // Rose / Dark Pink
+      'urgent': '#ef4444'   // Red
     };
 
     const color = priorityColors[priority] || '#6b7280';
@@ -119,6 +134,8 @@ const CrimeMap = () => {
     });
   };
 
+  // --- Add/Update Crime Markers on Map ---
+  // FIXED: Updated filtering logic and popup content to match working code
   const addCrimeMarkers = () => {
     if (!map.current) return;
 
@@ -134,6 +151,7 @@ const CrimeMap = () => {
     });
 
     const newMarkers = filteredCrimes.map((crime) => {
+      // FIXED: Use 'latitude' and 'longitude'
       if (typeof crime.latitude !== 'number' || typeof crime.longitude !== 'number') {
         console.warn('Skipping crime with invalid coordinates:', crime);
         return null;
@@ -142,6 +160,7 @@ const CrimeMap = () => {
         icon: createCustomIcon(crime.priority)
       }).addTo(map.current);
       
+      // FIXED: Richer popup content from working code
       const popupContent = `
         <div style="font-family: system-ui, sans-serif; min-width: 200px;">
           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -170,6 +189,8 @@ const CrimeMap = () => {
     setCrimeMarkers(newMarkers);
   };
 
+  // --- Search Handler ---
+  // FIXED: Implemented robust search from working code
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
       addCrimeMarkers();
@@ -192,6 +213,7 @@ const CrimeMap = () => {
     }
   };
 
+  // --- Effects ---
   React.useEffect(() => {
     initializeMap();
     return () => {
@@ -202,18 +224,21 @@ const CrimeMap = () => {
     };
   }, []);
 
+  // FIXED: Dependency array uses 'selectedPriority'
   React.useEffect(() => {
     if (isMapLoaded) {
       addCrimeMarkers();
     }
   }, [selectedPriority, searchQuery, allCrimes, isMapLoaded]);
 
+  // --- Render JSX ---
+
   const priorityColors = {
-    low: '#eab308',
-    medium: '#f97316',
-    high: '#f43f5e',
-    urgent: '#ef4444'
-  };
+  low: '#eab308',      // Yellow
+  medium: '#f97316',   // Orange
+  high: '#f43f5e',     // Rose
+  urgent: '#ef4444'    // Red
+};
 
   return (
     <div className="relative w-full h-full bg-gray-100">
@@ -240,6 +265,7 @@ const CrimeMap = () => {
 
       {showFilters && (
         <div className="absolute top-16 right-4 z-[1000] bg-white p-4 rounded-lg shadow-lg w-56">
+          {/* FIXED: Filter by 'Priority' */}
           <h4 className="font-semibold text-sm mb-3">Filter by Priority</h4>
           <div className="space-y-2">
             {['all', 'high', 'medium', 'low'].map(priority => (
@@ -270,12 +296,17 @@ const CrimeMap = () => {
         </div>
       )}
 
+      {/* ADDED: Error message display from working code */}
       {errorMessage && (
         <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg z-[1000]" role="alert">
           <strong className="font-bold">Error: </strong>
           <span className="block sm:inline">{errorMessage}</span>
         </div>
       )}
+
+      {/* FIXED: Dynamic legend from working code */}
+
+
 
       {isMapLoaded && (
         <div className="absolute bottom-4 left-4 bg-white/90 p-3 rounded-lg shadow-lg z-[1000] backdrop-blur-sm">
@@ -294,6 +325,7 @@ const CrimeMap = () => {
         </div>
       )}
 
+      {/* RETAINED & FIXED: Statistics panel */}
       {isMapLoaded && (
         <div className="absolute bottom-4 right-4 bg-white/90 p-3 rounded-lg shadow-lg z-[1000] backdrop-blur-sm w-48">
           <h3 className="font-semibold text-sm mb-2">Filtered Statistics</h3>
@@ -305,6 +337,7 @@ const CrimeMap = () => {
             <div className="flex justify-between gap-4">
               <span>High Priority:</span>
               <span className="font-medium text-red-600">
+                {crimeMarkers.filter(marker => allCrimes.find(c => c.id === marker.crimeId)?.priority === 'high').length}
                 {allCrimes.filter(c => c.priority === 'high' && (selectedPriority === 'all' || selectedPriority === 'high')).length}
               </span>
             </div>

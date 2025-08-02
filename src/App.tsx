@@ -7,8 +7,9 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import AuthPage from "./components/auth/AuthPage";
-import ReportPage from "./pages/ReportPage";
+import ReportIssuePage from "./pages/ReportIssuePage";
 import ProfilePage from "./pages/ProfilePage";
+import AdminPage from "./pages/AdminPage";
 
 const queryClient = new QueryClient();
 
@@ -51,7 +52,15 @@ const App = () => (
               path="/report" 
               element={
                 <ProtectedRoute>
-                  <ReportPage />
+                  <ReportIssuePage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin" 
+              element={
+                <ProtectedRoute>
+                  <AdminPage />
                 </ProtectedRoute>
               } 
             />

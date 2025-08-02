@@ -11,7 +11,7 @@ const AuthPage = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-primary p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">CrimeWatch</h1>
+          <h1 className="text-4xl font-bold text-white mb-2">CivicWatch</h1>
           <p className="text-white/80">Real-time crime reporting for safer communities</p>
         </div>
         

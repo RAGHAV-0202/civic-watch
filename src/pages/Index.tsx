@@ -90,7 +90,7 @@ const fetchData = async () => {
   const formatTimeAgo = (dateString) => {
     const now = new Date();
     const date = new Date(dateString);
-    const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
+    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
     
     if (diffInHours < 1) return 'Less than an hour ago';
     if (diffInHours === 1) return '1 hour ago';
@@ -163,7 +163,7 @@ const fetchData = async () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-blue-600 via-green-500 to-orange-500 bg-clip-text text-transparent">
-            CivicConnect
+            CivicWatch
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Report infrastructure issues and help improve your community. From potholes to broken streetlights, make your voice heard.

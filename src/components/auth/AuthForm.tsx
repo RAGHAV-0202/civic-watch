@@ -49,6 +49,14 @@ export const AuthForm = ({ mode, isLoading, setIsLoading }: AuthFormProps) => {
 
   const role = watch("role");
 
+  const handleRoleBasedRedirect = (userRole: string) => {
+    if (userRole === "officer") {
+      window.location.href = "/admin";
+    } else {
+      window.location.href = "/";
+    }
+  };
+
   const onSubmit = async (data: any) => {
     setIsLoading(true);
     
@@ -78,11 +86,13 @@ export const AuthForm = ({ mode, isLoading, setIsLoading }: AuthFormProps) => {
           }
         } else {
           toast.success("Check your email for the confirmation link!");
+          // Note: For sign up, redirection typically happens after email confirmation
+          // You might want to store the role in localStorage or handle it in your email confirmation flow
         }
       } else {
         const signInData = data as SignInFormData;
         
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data: authData, error } = await supabase.auth.signInWithPassword({
           email: signInData.email,
           password: signInData.password,
         });
@@ -95,6 +105,27 @@ export const AuthForm = ({ mode, isLoading, setIsLoading }: AuthFormProps) => {
           }
         } else {
           toast.success("Welcome back!");
+          
+          // Get user role from user metadata or profile
+          const userRole = authData.user?.user_metadata?.role;
+          
+          if (userRole) {
+            handleRoleBasedRedirect(userRole);
+          } else {
+            // Fallback: fetch role from profiles table if not in metadata
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("role")
+              .eq("id", authData.user.id)
+              .single();
+            
+            if (profile?.role) {
+              handleRoleBasedRedirect(profile.role);
+            } else {
+              // Default redirect if role is not found
+              window.location.href = "/";
+            }
+          }
         }
       }
     } catch (error) {

@@ -1,12 +1,31 @@
+import React from 'react';
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { MapPin, Plus, User, LogOut } from "lucide-react";
+import { MapPin, Plus, User, LogOut, Shield } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { supabase } from "@/integrations/supabase/client";
 
 const Navbar = () => {
   const { user, signOut } = useAuth();
   const location = useLocation();
+  const [userRole, setUserRole] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const fetchUserRole = async () => {
+      if (!user) return;
+      
+      const { data } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+        
+      setUserRole(data?.role || null);
+    };
+
+    fetchUserRole();
+  }, [user]);
 
   return (
     <nav className="bg-white dark:bg-gray-900 border-b border-border shadow-sm">
@@ -36,18 +55,30 @@ const Navbar = () => {
                       <User className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem asChild>
-                      <Link to="/profile" className="flex items-center space-x-2">
-                        <User className="h-4 w-4" />
-                        <span>Profile</span>
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={signOut} className="flex items-center space-x-2">
-                      <LogOut className="h-4 w-4" />
-                      <span>Sign Out</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
+                   <DropdownMenuContent align="end" className="w-48">
+                     <DropdownMenuItem asChild>
+                       <Link to="/profile" className="flex items-center space-x-2 cursor-pointer">
+                         <User className="h-4 w-4" />
+                         <span>Profile</span>
+                       </Link>
+                     </DropdownMenuItem>
+                     
+                     {userRole === 'admin' && (
+                       <DropdownMenuItem asChild>
+                         <Link to="/admin" className="flex items-center space-x-2 cursor-pointer">
+                           <Shield className="h-4 w-4" />
+                           <span>Admin Panel</span>
+                         </Link>
+                       </DropdownMenuItem>
+                     )}
+
+                     <DropdownMenuSeparator />
+                     
+                     <DropdownMenuItem onClick={signOut} className="flex items-center space-x-2 cursor-pointer text-red-600">
+                       <LogOut className="h-4 w-4" />
+                       <span>Sign Out</span>
+                     </DropdownMenuItem>
+                   </DropdownMenuContent>
                 </DropdownMenu>
               </>
             )}
