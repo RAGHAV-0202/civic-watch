@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 import { AuthProvider } from "./hooks/useAuth";
+import Index from "./pages/Index";
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
           <AuthProvider>
             <Routes>
               <Route path="*" element={<NotFound />} />
+              <Route path="/" element={<Index />} />
             </Routes>
           </AuthProvider>
         </BrowserRouter>
