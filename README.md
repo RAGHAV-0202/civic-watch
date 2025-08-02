@@ -3,7 +3,7 @@ React TypeScript Supabase
 
 https://civicwatch.netlify.app/
 
-A full-stack community safety reporting platform with real-time crime mapping, administrative dashboard, and notification system, built with React, TypeScript, and Supabase.
+A full-stack community safety reporting platform with real-time isssues mapping, administrative dashboard, and notification system, built with React, TypeScript, and Supabase.
 
 🌟 Features
 
@@ -15,10 +15,9 @@ A full-stack community safety reporting platform with real-time crime mapping, a
 - Protected routes and middleware verification
 - Anonymous reporting option
 
-### Crime Reporting System
-- Submit detailed crime reports with location data
-- Category-based crime classification
-- File upload support for evidence
+### Issues Reporting System
+- Submit detailed Issue reports with location data
+- Category-based Issue classification
 - Anonymous and identified reporting options
 - Report status tracking
 
@@ -34,20 +33,7 @@ A full-stack community safety reporting platform with real-time crime mapping, a
 - User management tools
 - Flag management system for inappropriate content
 
-### Notification System
-- Email notifications for report status updates
-- Automated alerts via Supabase Edge Functions
-- Admin notifications for new reports
-- Real-time status change notifications
-
-### Advanced Analytics
-- Crime trend analysis and reporting
-- Geographic crime distribution
-- Status tracking and metrics
-- Custom dashboard widgets
-
 ## Technical Features
-- Responsive design with dark/light mode support
 - Real-time data synchronization
 - Optimistic UI updates
 - Error handling and loading states
