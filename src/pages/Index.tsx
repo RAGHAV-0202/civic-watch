@@ -1,19 +1,107 @@
+import React from 'react';
 import { useAuth } from "@/hooks/useAuth";
 import CivicMap from "@/components/map/IssueMap";
 import Navbar from "@/components/layout/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Construction, Lightbulb, Droplets, Trash2, Shield, TreePine } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const { user } = useAuth();
+  const [stats, setStats] = React.useState([
+    { icon: Construction, label: "Active Reports", value: "0", color: "text-orange-600" },
+    { icon: Shield, label: "Resolved Issues", value: "0", color: "text-green-600" },
+    { icon: Lightbulb, label: "Community Members", value: "0", color: "text-blue-600" },
+    { icon: Droplets, label: "Response Rate", value: "0%", color: "text-green-600" },
+  ]);
+  const [recentReports, setRecentReports] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
 
-  const stats = [
-    { icon: Construction, label: "Active Reports", value: "127", color: "text-orange-600" },
-    { icon: Shield, label: "Resolved Issues", value: "892", color: "text-green-600" },
-    { icon: Lightbulb, label: "Community Members", value: "2,341", color: "text-blue-600" },
-    { icon: Droplets, label: "Response Rate", value: "88%", color: "text-green-600" },
-  ];
+  React.useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      const [reportsResponse, statsResponse, usersResponse] = await Promise.all([
+        supabase
+          .from('crime_reports')
+          .select(`
+            *,
+            crime_categories (
+              name
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .limit(4),
+        
+        supabase
+          .from('crime_reports')
+          .select('status')
+          .in('status', ['active', 'resolved']),
+        
+        supabase
+          .from('profiles')
+          .select('id', { count: 'exact' })
+      ]);
+
+      if (reportsResponse.data) {
+        const formattedReports = reportsResponse.data.map(report => ({
+          type: report.crime_categories?.name || 'General',
+          location: report.location || 'Unknown Location',
+          time: formatTimeAgo(report.created_at),
+          priority: report.priority || 'medium',
+          icon: getCategoryIcon(report.crime_categories?.name)
+        }));
+        setRecentReports(formattedReports);
+      }
+
+      if (statsResponse.data) {
+        const activeCount = statsResponse.data.length;
+        const resolvedCount = statsResponse.data.filter(r => r.status === 'resolved').length;
+        const totalReports = statsResponse.data.length;
+        const responseRate = totalReports > 0 ? Math.round((resolvedCount / totalReports) * 100) : 0;
+
+        setStats([
+          { icon: Construction, label: "Active Reports", value: activeCount.toString(), color: "text-orange-600" },
+          { icon: Shield, label: "Resolved Issues", value: resolvedCount.toString(), color: "text-green-600" },
+          { icon: Lightbulb, label: "Community Members", value: (usersResponse.count || 0).toString(), color: "text-blue-600" },
+          { icon: Droplets, label: "Response Rate", value: `${responseRate}%`, color: "text-green-600" },
+        ]);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatTimeAgo = (dateString) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return 'Less than an hour ago';
+    if (diffInHours === 1) return '1 hour ago';
+    if (diffInHours < 24) return `${diffInHours} hours ago`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays === 1) return '1 day ago';
+    return `${diffInDays} days ago`;
+  };
+
+  const getCategoryIcon = (categoryName) => {
+    const iconMap = {
+      'Roads': '🚧',
+      'Lighting': '💡',
+      'Water Supply': '💧',
+      'Cleanliness': '🗑️',
+      'Public Safety': '⚠️',
+      'Obstructions': '🌳'
+    };
+    return iconMap[categoryName] || '📍';
+  };
 
   const civicCategories = [
     {
@@ -55,26 +143,6 @@ const Index = () => {
       borderColor: "border-green-200",
       textColor: "text-green-800",
       descColor: "text-green-700"
-    },
-    {
-      name: "Public Safety",
-      description: "Open manholes, exposed wiring, hazards",
-      icon: "⚠️",
-      color: "purple",
-      bgColor: "bg-purple-50",
-      borderColor: "border-purple-200",
-      textColor: "text-purple-800",
-      descColor: "text-purple-700"
-    },
-    {
-      name: "Obstructions",
-      description: "Fallen trees, debris, blocked paths",
-      icon: "🌳",
-      color: "gray",
-      bgColor: "bg-gray-50",
-      borderColor: "border-gray-200",
-      textColor: "text-gray-800",
-      descColor: "text-gray-700"
     }
   ];
 
@@ -83,7 +151,6 @@ const Index = () => {
       <Navbar />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Hero Section */}
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-blue-600 via-green-500 to-orange-500 bg-clip-text text-transparent">
             CivicConnect
@@ -93,7 +160,6 @@ const Index = () => {
           </p>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
           {stats.map((stat, index) => (
             <Card key={index} className="hover:shadow-lg transition-shadow">
@@ -102,13 +168,18 @@ const Index = () => {
                   <stat.icon className={`h-5 w-5 ${stat.color}`} />
                   <span className="text-sm font-medium text-muted-foreground">{stat.label}</span>
                 </div>
-                <div className="text-2xl font-bold mt-2">{stat.value}</div>
+                <div className="text-2xl font-bold mt-2">
+                  {loading ? (
+                    <div className="animate-pulse bg-gray-200 h-8 w-16 rounded"></div>
+                  ) : (
+                    stat.value
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        {/* Map Section */}
         <Card className="mb-8">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -133,7 +204,6 @@ const Index = () => {
           </CardContent>
         </Card>
 
-        {/* Recent Activity & Categories */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <Card>
             <CardHeader>
@@ -141,34 +211,47 @@ const Index = () => {
               <CardDescription>Latest infrastructure issues reported by the community</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {[
-                { type: "Roads", location: "MG Road, Sector 14", time: "2 hours ago", priority: "high", icon: "🚧" },
-                { type: "Lighting", location: "Park Avenue, Sector 22", time: "4 hours ago", priority: "medium", icon: "💡" },
-                { type: "Water Supply", location: "Green Park Colony", time: "6 hours ago", priority: "urgent", icon: "💧" },
-                { type: "Cleanliness", location: "Market Complex", time: "8 hours ago", priority: "low", icon: "🗑️" },
-              ].map((report, index) => (
-                <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-lg">{report.icon}</span>
-                    <div>
-                      <div className="font-medium">{report.type}</div>
-                      <div className="text-sm text-muted-foreground">{report.location}</div>
+              {loading ? (
+                <div className="space-y-3">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="animate-pulse flex items-center space-x-3 p-3">
+                      <div className="w-8 h-8 bg-gray-200 rounded"></div>
+                      <div className="flex-1">
+                        <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                        <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : recentReports.length > 0 ? (
+                recentReports.map((report, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <span className="text-lg">{report.icon}</span>
+                      <div>
+                        <div className="font-medium">{report.type}</div>
+                        <div className="text-sm text-muted-foreground">{report.location}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <Badge 
+                        variant={report.priority === "urgent" || report.priority === "high" ? "destructive" : "outline"}
+                        className={
+                          report.priority === "medium" ? "text-orange-600 border-orange-600" : 
+                          report.priority === "low" ? "text-green-600 border-green-600" : ""
+                        }
+                      >
+                        {report.priority}
+                      </Badge>
+                      <div className="text-sm text-muted-foreground mt-1">{report.time}</div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <Badge 
-                      variant={report.priority === "urgent" || report.priority === "high" ? "destructive" : "outline"}
-                      className={
-                        report.priority === "medium" ? "text-orange-600 border-orange-600" : 
-                        report.priority === "low" ? "text-green-600 border-green-600" : ""
-                      }
-                    >
-                      {report.priority}
-                    </Badge>
-                    <div className="text-sm text-muted-foreground mt-1">{report.time}</div>
-                  </div>
+                ))
+              ) : (
+                <div className="text-center text-muted-foreground py-8">
+                  No recent reports found
                 </div>
-              ))}
+              )}
             </CardContent>
           </Card>
 
@@ -178,7 +261,7 @@ const Index = () => {
               <CardDescription>Common infrastructure problems you can report</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {civicCategories.slice(0, 4).map((category, index) => (
+              {civicCategories.map((category, index) => (
                 <div key={index} className={`p-4 rounded-lg ${category.bgColor} ${category.borderColor} border`}>
                   <h4 className={`font-medium ${category.textColor} mb-2 flex items-center space-x-2`}>
                     <span>{category.icon}</span>
@@ -196,7 +279,6 @@ const Index = () => {
           </Card>
         </div>
 
-        {/* Call to Action */}
         <Card className="mt-8 bg-gradient-to-r from-blue-50 to-green-50 border-0">
           <CardContent className="p-8 text-center">
             <h3 className="text-2xl font-bold mb-2">Make a Difference in Your Community</h3>

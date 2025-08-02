@@ -1,22 +1,18 @@
 import React from 'react';
-// Make sure to install leaflet if you haven't: npm install leaflet
-// You might also need its types: npm install @types/leaflet
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 
-// --- Main CrimeMap Component ---
 const CrimeMap = () => {
-  // --- Refs and State ---
   const mapContainer = React.useRef(null);
   const map = React.useRef(null);
   const [isMapLoaded, setIsMapLoaded] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [showFilters, setShowFilters] = React.useState(false);
-  const [selectedPriority, setSelectedPriority] = React.useState('all'); // FIXED: Was selectedSeverity
+  const [selectedPriority, setSelectedPriority] = React.useState('all');
   const [crimeMarkers, setCrimeMarkers] = React.useState([]);
   const [allCrimes, setAllCrimes] = React.useState([]);
-  const [errorMessage, setErrorMessage] = React.useState(''); // ADDED: For better error UI
+  const [errorMessage, setErrorMessage] = React.useState('');
 
   const fetchCrimes = async () => {
     try {
@@ -35,7 +31,7 @@ const CrimeMap = () => {
 
       if (data) {
         setAllCrimes(data);
-        setErrorMessage(''); // Clear any previous errors
+        setErrorMessage('');
       }
     } catch (error) {
       console.error('Error fetching crime data:', error);
@@ -43,7 +39,6 @@ const CrimeMap = () => {
     }
   };
 
-  // --- Leaflet Map Resource Loading ---
   const loadLeafletResources = () => {
     return new Promise((resolve) => {
       if (window.L) {
@@ -61,7 +56,6 @@ const CrimeMap = () => {
     });
   };
 
-  // --- Map Initialization ---
   const initializeMap = async () => {
     if (!mapContainer.current || map.current) return;
 
@@ -94,7 +88,6 @@ const CrimeMap = () => {
               .bindPopup('<b>You are here</b>')
               .openPopup();
           }, () => {
-            // FIXED: Use non-blocking error message
             setErrorMessage('Unable to get your location. Please check browser settings.');
           });
         } else {
@@ -107,13 +100,12 @@ const CrimeMap = () => {
     setIsMapLoaded(true);
   };
 
-
   const createCustomIcon = (priority) => {
     const priorityColors = {
-      'low': '#eab308',     // Yellow
-      'medium': '#f97316',  // Orange
-      'high': '#f43f5e',    // Rose / Dark Pink
-      'urgent': '#ef4444'   // Red
+      'low': '#eab308',
+      'medium': '#f97316',
+      'high': '#f43f5e',
+      'urgent': '#ef4444'
     };
 
     const color = priorityColors[priority] || '#6b7280';
@@ -124,7 +116,6 @@ const CrimeMap = () => {
       iconAnchor: [14, 14],
     });
   };
-
 
   const addCrimeMarkers = () => {
     if (!map.current) return;
@@ -141,7 +132,6 @@ const CrimeMap = () => {
     });
 
     const newMarkers = filteredCrimes.map((crime) => {
-      // FIXED: Use 'latitude' and 'longitude'
       if (typeof crime.latitude !== 'number' || typeof crime.longitude !== 'number') {
         console.warn('Skipping crime with invalid coordinates:', crime);
         return null;
@@ -174,7 +164,6 @@ const CrimeMap = () => {
     setCrimeMarkers(newMarkers);
   };
 
-
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
       addCrimeMarkers();
@@ -197,7 +186,6 @@ const CrimeMap = () => {
     }
   };
 
-
   React.useEffect(() => {
     initializeMap();
     return () => {
@@ -208,21 +196,18 @@ const CrimeMap = () => {
     };
   }, []);
 
-
   React.useEffect(() => {
     if (isMapLoaded) {
       addCrimeMarkers();
     }
   }, [selectedPriority, searchQuery, allCrimes, isMapLoaded]);
 
-
-
   const priorityColors = {
-  low: '#eab308',      // Yellow
-  medium: '#f97316',   // Orange
-  high: '#f43f5e',     // Rose
-  urgent: '#ef4444'    // Red
-};
+    low: '#eab308',
+    medium: '#f97316',
+    high: '#f43f5e',
+    urgent: '#ef4444'
+  };
 
   return (
     <div className="relative w-full h-full bg-gray-100">
@@ -249,7 +234,6 @@ const CrimeMap = () => {
 
       {showFilters && (
         <div className="absolute top-16 right-4 z-[1000] bg-white p-4 rounded-lg shadow-lg w-56">
-
           <h4 className="font-semibold text-sm mb-3">Filter by Priority</h4>
           <div className="space-y-2">
             {['all', 'high', 'medium', 'low'].map(priority => (
@@ -287,9 +271,6 @@ const CrimeMap = () => {
         </div>
       )}
 
-
-
-
       {isMapLoaded && (
         <div className="absolute bottom-4 left-4 bg-white/90 p-3 rounded-lg shadow-lg z-[1000] backdrop-blur-sm">
           <h3 className="font-semibold text-sm mb-2">Priority Legend</h3>
@@ -318,7 +299,6 @@ const CrimeMap = () => {
             <div className="flex justify-between gap-4">
               <span>High Priority:</span>
               <span className="font-medium text-red-600">
-                {crimeMarkers.filter(marker => allCrimes.find(c => c.id === marker.crimeId)?.priority === 'high').length}
                 {allCrimes.filter(c => c.priority === 'high' && (selectedPriority === 'all' || selectedPriority === 'high')).length}
               </span>
             </div>
