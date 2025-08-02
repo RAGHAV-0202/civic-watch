@@ -22,60 +22,70 @@ const Index = () => {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
-    try {
-      const [reportsResponse, statsResponse, usersResponse] = await Promise.all([
-        supabase
-          .from('crime_reports')
-          .select(`
-            *,
-            crime_categories (
-              name
-            )
-          `)
-          .order('created_at', { ascending: false })
-          .limit(4),
-        
-        supabase
-          .from('crime_reports')
-          .select('status')
-          .in('status', ['active', 'resolved']),
-        
-        supabase
-          .from('profiles')
-          .select('id', { count: 'exact' })
-      ]);
+const fetchData = async () => {
+  try {
+    const [reportsResponse, usersResponse] = await Promise.all([
+      supabase
+        .from('crime_reports')
+        .select(`
+          *,
+          crime_categories (
+            name
+          )
+        `)
+        .order('created_at', { ascending: false }),
+      
+      supabase
+        .from('profiles')
+        .select('id', { count: 'exact' })
+    ]);
 
-      if (reportsResponse.data) {
-        const formattedReports = reportsResponse.data.map(report => ({
+    if (reportsResponse.data) {
+      console.log('All reports:', reportsResponse.data);
+      
+      // Get recent 4 reports for display
+      const recentReports = reportsResponse.data.slice(0, 4);
+      const formattedReports = recentReports.map(report => {
+        const formatted = {
           type: report.crime_categories?.name || 'General',
-          location: report.location || 'Unknown Location',
           time: formatTimeAgo(report.created_at),
           priority: report.priority || 'medium',
-          icon: getCategoryIcon(report.crime_categories?.name)
-        }));
-        setRecentReports(formattedReports);
-      }
+          icon: getCategoryIcon(report.crime_categories?.name),
+          status: report.status
+        };
+        console.log('Formatted report:', formatted);
+        return formatted;
+      });
+      setRecentReports(formattedReports);
 
-      if (statsResponse.data) {
-        const activeCount = statsResponse.data.length;
-        const resolvedCount = statsResponse.data.filter(r => r.status === 'resolved').length;
-        const totalReports = statsResponse.data.length;
-        const responseRate = totalReports > 0 ? Math.round((resolvedCount / totalReports) * 100) : 0;
+      // Calculate stats from all reports
+      const allReports = reportsResponse.data;
+      const activeCount = allReports.filter(r => r.status === 'pending').length;
+      const resolvedCount = allReports.filter(r => r.status === 'resolved').length;
+      const totalReports = allReports.length;
+      const responseRate = totalReports > 0 ? Math.round((resolvedCount / totalReports) * 100) : 0;
 
-        setStats([
-          { icon: Construction, label: "Active Reports", value: activeCount.toString(), color: "text-orange-600" },
-          { icon: Shield, label: "Resolved Issues", value: resolvedCount.toString(), color: "text-green-600" },
-          { icon: Lightbulb, label: "Community Members", value: (usersResponse.count || 0).toString(), color: "text-blue-600" },
-          { icon: Droplets, label: "Response Rate", value: `${responseRate}%`, color: "text-green-600" },
-        ]);
-      }
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
+      console.log('Stats calculation:', {
+        allReports: allReports.length,
+        activeCount,
+        resolvedCount,
+        totalReports,
+        responseRate
+      });
+
+      setStats([
+        { icon: Construction, label: "Active Reports", value: activeCount.toString(), color: "text-orange-600" },
+        { icon: Shield, label: "Resolved Issues", value: resolvedCount.toString(), color: "text-green-600" },
+        { icon: Lightbulb, label: "Community Members", value: (usersResponse.count || 0).toString(), color: "text-blue-600" },
+        { icon: Droplets, label: "Response Rate", value: `${responseRate}%`, color: "text-green-600" },
+      ]);
     }
-  };
+  } catch (error) {
+    console.error('Error fetching data:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const formatTimeAgo = (dateString) => {
     const now = new Date();
