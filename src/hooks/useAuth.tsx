@@ -13,7 +13,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
@@ -29,61 +29,60 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    };
-
-    getInitialSession();
-
-    // Listen for auth changes
+    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
-
-        // Handle new user profile creation
-        if (event === 'SIGNED_IN' && session?.user) {
-          await createUserProfile(session.user);
+        
+        // Create profile after successful signup
+        if (event === 'SIGNED_IN' && session?.user && session.user.user_metadata?.full_name) {
+          setTimeout(async () => {
+            const userData = session.user.user_metadata;
+            const { error } = await supabase
+              .from('profiles')
+              .insert({
+                user_id: session.user.id,
+                full_name: userData.full_name,
+                phone: userData.phone,
+                role: userData.role || 'citizen'
+              });
+            
+            if (error) {
+              console.error('Error creating profile:', error);
+            }
+          }, 0);
         }
       }
     );
 
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
     return () => subscription.unsubscribe();
   }, []);
-
-  const createUserProfile = async (user: User) => {
-    const { full_name, phone, role } = user.user_metadata;
-    
-    if (!full_name) return;
-
-    const { error } = await supabase
-      .from('profiles')
-      .insert({
-        user_id: user.id,
-        full_name,
-        phone,
-        role: role || 'citizen'
-      });
-
-    if (error) {
-      console.error('Failed to create user profile:', error);
-    }
-  };
 
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
-      console.error("Sign out failed:", error);
+      console.error("Error signing out:", error);
     }
   };
 
+  const value = {
+    user,
+    session,
+    loading,
+    signOut,
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, loading, signOut }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

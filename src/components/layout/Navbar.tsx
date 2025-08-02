@@ -14,7 +14,7 @@ const Navbar = () => {
         <div className="flex justify-between items-center h-16">
           <Link to="/" className="flex items-center space-x-2">
             <MapPin className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold">CrimeWatch</span>
+            <span className="text-xl font-bold">CivicWatch</span>
           </Link>
 
           <div className="flex items-center space-x-4">

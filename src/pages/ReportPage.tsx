@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -10,11 +10,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import Navbar from "@/components/layout/Navbar";
-import { MapPin, Construction } from "lucide-react";
+import { MapPin, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { IssueCategory } from "@/integrations/supabase/types";
 
 const reportSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters"),
@@ -29,18 +28,17 @@ const reportSchema = z.object({
 
 type ReportFormData = z.infer<typeof reportSchema>;
 
-function ReportPage() {
+const ReportPage = () => {
   const { user } = useAuth();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [categories, setCategories] = useState<IssueCategory[]>([]);
-  const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [categories, setCategories] = useState<Array<{id: string, name: string, description: string}>>([]);
+  const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
 
   const {
     register,
     handleSubmit,
     setValue,
     watch,
-    reset,
     formState: { errors },
   } = useForm<ReportFormData>({
     resolver: zodResolver(reportSchema),
@@ -53,54 +51,55 @@ function ReportPage() {
   const isAnonymous = watch("isAnonymous");
   const priority = watch("priority");
 
-  useEffect(() => {
-    loadCategories();
-  }, []);
-
-  const loadCategories = async () => {
-    const { data, error } = await supabase
-      .from('issue_categories')
-      .select('*')
-      .order('name');
-    
-    if (error) {
-      toast.error("Failed to load categories");
-    } else {
-      setCategories(data || []);
-    }
-  };
-
+  // Get current location
   const getCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      toast.error("Geolocation not supported by this browser");
-      return;
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setCurrentLocation({ lat: latitude, lng: longitude });
+          setValue("latitude", latitude);
+          setValue("longitude", longitude);
+          toast.success("Location captured successfully!");
+        },
+        (error) => {
+          toast.error("Unable to get your location. Please enter manually.");
+        }
+      );
+    } else {
+      toast.error("Geolocation is not supported by this browser.");
     }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setLocation({ lat: latitude, lng: longitude });
-        setValue("latitude", latitude);
-        setValue("longitude", longitude);
-        toast.success("Location captured!");
-      },
-      () => {
-        toast.error("Unable to get your location");
-      }
-    );
   };
+
+  // Load categories on component mount
+  useState(() => {
+    const loadCategories = async () => {
+      const { data, error } = await supabase
+        .from('crime_categories')
+        .select('id, name, description')
+        .order('name');
+      
+      if (error) {
+        toast.error("Failed to load categories");
+      } else {
+        setCategories(data || []);
+      }
+    };
+    
+    loadCategories();
+  });
 
   const onSubmit = async (data: ReportFormData) => {
     if (!user) {
-      toast.error("Please log in to report issues");
+      toast.error("You must be logged in to report crimes");
       return;
     }
 
-    setIsSubmitting(true);
+    setIsLoading(true);
     
     try {
       const { error } = await supabase
-        .from('issue_reports')
+        .from('crime_reports')
         .insert({
           user_id: user.id,
           category_id: data.categoryId,
@@ -114,100 +113,102 @@ function ReportPage() {
         });
 
       if (error) {
-        toast.error("Failed to submit report");
-        console.error("Submit error:", error);
+        toast.error("Failed to submit report. Please try again.");
+        console.error("Error submitting report:", error);
       } else {
-        toast.success("Issue reported successfully!");
-        reset();
-        setLocation(null);
+        toast.success("Report submitted successfully! Authorities have been notified.");
+        // Reset form or redirect
       }
     } catch (error) {
-      toast.error("Something went wrong. Please try again.");
-      console.error("Unexpected error:", error);
+      toast.error("An unexpected error occurred. Please try again.");
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <Navbar />
       
-      <div className="max-w-2xl mx-auto px-4 py-8">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center mb-8">
-          <Construction className="h-12 w-12 text-orange-600 mx-auto mb-4" />
-          <h1 className="text-3xl font-bold mb-2 text-gray-900">Report an Issue</h1>
-          <p className="text-gray-600">
-            Help improve your community by reporting infrastructure problems
+          <AlertTriangle className="h-12 w-12 text-primary mx-auto mb-4" />
+          <h1 className="text-3xl font-bold mb-2">Report an Incident</h1>
+          <p className="text-muted-foreground">
+            Help keep your community safe by reporting incidents in your area
           </p>
         </div>
 
-        <Card className="border-0 shadow-sm">
+        <Card>
           <CardHeader>
-            <CardTitle>Issue Details</CardTitle>
+            <CardTitle>Incident Details</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              {/* Title */}
               <div className="space-y-2">
-                <Label htmlFor="title">Issue Title</Label>
+                <Label htmlFor="title">Incident Title</Label>
                 <Input
                   id="title"
-                  placeholder="Brief description of the problem"
+                  placeholder="Brief description of the incident"
                   {...register("title")}
                 />
                 {errors.title && (
-                  <p className="text-sm text-red-600">{errors.title.message}</p>
+                  <p className="text-sm text-destructive">{errors.title.message}</p>
                 )}
               </div>
 
+              {/* Category */}
               <div className="space-y-2">
                 <Label htmlFor="category">Category</Label>
                 <Select onValueChange={(value) => setValue("categoryId", value)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select issue type" />
+                    <SelectValue placeholder="Select incident category" />
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map((category) => (
                       <SelectItem key={category.id} value={category.id}>
-                        {category.name}
-                        {category.description && ` - ${category.description}`}
+                        {category.name} - {category.description}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {errors.categoryId && (
-                  <p className="text-sm text-red-600">{errors.categoryId.message}</p>
+                  <p className="text-sm text-destructive">{errors.categoryId.message}</p>
                 )}
               </div>
 
+              {/* Priority */}
               <div className="space-y-2">
-                <Label htmlFor="priority">Priority</Label>
+                <Label htmlFor="priority">Priority Level</Label>
                 <Select value={priority} onValueChange={(value) => setValue("priority", value as any)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Low - Minor issue</SelectItem>
-                    <SelectItem value="medium">Medium - Needs attention</SelectItem>
-                    <SelectItem value="high">High - Important fix needed</SelectItem>
-                    <SelectItem value="urgent">Urgent - Safety hazard</SelectItem>
+                    <SelectItem value="low">Low - Non-urgent</SelectItem>
+                    <SelectItem value="medium">Medium - Standard response</SelectItem>
+                    <SelectItem value="high">High - Urgent attention needed</SelectItem>
+                    <SelectItem value="urgent">Urgent - Immediate response required</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
+              {/* Description */}
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description">Detailed Description</Label>
                 <Textarea
                   id="description"
-                  placeholder="Describe the issue in detail..."
+                  placeholder="Provide as much detail as possible about what happened..."
                   rows={4}
                   {...register("description")}
                 />
                 {errors.description && (
-                  <p className="text-sm text-red-600">{errors.description.message}</p>
+                  <p className="text-sm text-destructive">{errors.description.message}</p>
                 )}
               </div>
 
+              {/* Location */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <Label>Location</Label>
@@ -219,7 +220,7 @@ function ReportPage() {
                     className="flex items-center space-x-2"
                   >
                     <MapPin className="h-4 w-4" />
-                    <span>Get Current Location</span>
+                    <span>Use Current Location</span>
                   </Button>
                 </div>
 
@@ -234,7 +235,7 @@ function ReportPage() {
                       {...register("latitude", { valueAsNumber: true })}
                     />
                     {errors.latitude && (
-                      <p className="text-sm text-red-600">{errors.latitude.message}</p>
+                      <p className="text-sm text-destructive">{errors.latitude.message}</p>
                     )}
                   </div>
                   <div className="space-y-2">
@@ -247,7 +248,7 @@ function ReportPage() {
                       {...register("longitude", { valueAsNumber: true })}
                     />
                     {errors.longitude && (
-                      <p className="text-sm text-red-600">{errors.longitude.message}</p>
+                      <p className="text-sm text-destructive">{errors.longitude.message}</p>
                     )}
                   </div>
                 </div>
@@ -262,6 +263,7 @@ function ReportPage() {
                 </div>
               </div>
 
+              {/* Anonymous reporting */}
               <div className="flex items-center space-x-2">
                 <Switch
                   id="anonymous"
@@ -271,12 +273,8 @@ function ReportPage() {
                 <Label htmlFor="anonymous">Submit anonymously</Label>
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full bg-orange-600 hover:bg-orange-700" 
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Submitting..." : "Submit Report"}
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Submitting Report..." : "Submit Report"}
               </Button>
             </form>
           </CardContent>
@@ -284,6 +282,6 @@ function ReportPage() {
       </div>
     </div>
   );
-}
+};
 
 export default ReportPage;

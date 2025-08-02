@@ -1,4 +1,3 @@
-// integrations/supabase/types.ts
 
 export type Json =
   | string
@@ -8,7 +7,7 @@ export type Json =
   | { [key: string]: Json }
   | Json[];
 
-export type IssueCategory = {
+export type CrimeCategory = {
   id: string;
   name: string;
   description?: string | null;
@@ -16,7 +15,7 @@ export type IssueCategory = {
   created_at: string;
 };
 
-export type IssueReport = {
+export type CrimeReport = {
   id: string;
   title: string;
   description: string;
@@ -43,17 +42,19 @@ export type Profile = {
   updated_at: string;
 };
 
+// define a Database type for Supabase
+
 export interface Database {
   public: {
     Tables: {
-      issue_categories: {
-        Row: IssueCategory;
-        Insert: Partial<IssueCategory> & { name: string };
-        Update: Partial<IssueCategory>;
+      crime_categories: {
+        Row: CrimeCategory;
+        Insert: Partial<CrimeCategory> & { name: string };
+        Update: Partial<CrimeCategory>;
       };
-      issue_reports: {
-        Row: IssueReport;
-        Insert: Partial<IssueReport> & {
+      crime_reports: {
+        Row: CrimeReport;
+        Insert: Partial<CrimeReport> & {
           title: string;
           description: string;
           category_id: string;
@@ -61,7 +62,7 @@ export interface Database {
           longitude: number;
           user_id: string;
         };
-        Update: Partial<IssueReport>;
+        Update: Partial<CrimeReport>;
       };
       profiles: {
         Row: Profile;

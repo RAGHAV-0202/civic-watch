@@ -1,40 +1,30 @@
 import React from 'react';
-// Import the new types for issues and categories
-import { IssueReport } from '@/integrations/supabase/types';
+// Make sure to install leaflet if you haven't: npm install leaflet
+// You might also need its types: npm install @types/leaflet
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 
-// --- Main IssueMap Component ---
-// Renamed from CrimeMap to IssueMap for clarity
-const IssueMap = () => {
+// --- Main CrimeMap Component ---
+const CrimeMap = () => {
   // --- Refs and State ---
-  const mapContainer = React.useRef<HTMLDivElement>(null);
-  // Use a more specific type for the map ref if possible, or any for simplicity with Leaflet
-  const map = React.useRef<any>(null);
+  const mapContainer = React.useRef(null);
+  const map = React.useRef(null);
   const [isMapLoaded, setIsMapLoaded] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [showFilters, setShowFilters] = React.useState(false);
-  const [selectedPriority, setSelectedPriority] = React.useState('all');
+  const [selectedPriority, setSelectedPriority] = React.useState('all'); // FIXED: Was selectedSeverity
+  const [crimeMarkers, setCrimeMarkers] = React.useState([]);
+  const [allCrimes, setAllCrimes] = React.useState([]);
+  const [errorMessage, setErrorMessage] = React.useState(''); // ADDED: For better error UI
 
-  // Renamed state variables from 'crime' to 'issue'
-  const [issueMarkers, setIssueMarkers] = React.useState<any[]>([]);
-  // Explicitly type the state with the new IssueReport type
-  const [allIssues, setAllIssues] = React.useState<IssueReport[]>([]);
-  const [errorMessage, setErrorMessage] = React.useState('');
-
-  // --- Supabase Data Fetching ---
-  /**
-   * Fetches issue reports and their associated categories from Supabase.
-   */
-  const fetchIssues = async () => {
+  const fetchCrimes = async () => {
     try {
-      // Updated query to use 'issue_reports' and 'issue_categories'
       const { data, error } = await supabase
-        .from('issue_reports')
+        .from('crime_reports')
         .select(`
           *,
-          issue_categories (
+          crime_categories (
             name
           )
         `);
@@ -44,19 +34,16 @@ const IssueMap = () => {
       }
 
       if (data) {
-        // Type assertion to ensure data matches our expected structure
-        setAllIssues(data as any as IssueReport[]);
-        setErrorMessage('');
+        setAllCrimes(data);
+        setErrorMessage(''); // Clear any previous errors
       }
     } catch (error) {
-      console.error('Error fetching issue data:', error);
-      // Updated error message
-      setErrorMessage('Failed to fetch issue data. Please try again later.');
+      console.error('Error fetching crime data:', error);
+      setErrorMessage('Failed to fetch crime data. Please try again later.');
     }
   };
 
   // --- Leaflet Map Resource Loading ---
-  // This utility function is well-written and doesn't need changes.
   const loadLeafletResources = () => {
     return new Promise((resolve) => {
       if (window.L) {
@@ -79,7 +66,7 @@ const IssueMap = () => {
     if (!mapContainer.current || map.current) return;
 
     await loadLeafletResources();
-    await fetchIssues(); // Fetch issues instead of crimes
+    await fetchCrimes();
 
     map.current = window.L.map(mapContainer.current).setView([24.5937, 78.9629], 4);
 
@@ -88,7 +75,6 @@ const IssueMap = () => {
       maxZoom: 19,
     }).addTo(map.current);
 
-    // The geolocate control is a great feature and is kept as is.
     const geolocateControl = window.L.control({ position: 'topright' });
     geolocateControl.onAdd = function () {
       const div = window.L.DomUtil.create('div', 'leaflet-bar leaflet-control bg-white p-2 rounded-md shadow-md cursor-pointer');
@@ -100,7 +86,7 @@ const IssueMap = () => {
           navigator.geolocation.getCurrentPosition((position) => {
             const { latitude, longitude } = position.coords;
             map.current.setView([latitude, longitude], 15);
-            map.current.eachLayer((layer: any) => {
+            map.current.eachLayer(layer => {
               if (layer.options.isUserLocation) map.current.removeLayer(layer);
             });
             window.L.marker([latitude, longitude], { isUserLocation: true })
@@ -108,6 +94,7 @@ const IssueMap = () => {
               .bindPopup('<b>You are here</b>')
               .openPopup();
           }, () => {
+            // FIXED: Use non-blocking error message
             setErrorMessage('Unable to get your location. Please check browser settings.');
           });
         } else {
@@ -120,84 +107,77 @@ const IssueMap = () => {
     setIsMapLoaded(true);
   };
 
-  // --- Custom Marker Icon Creation ---
-  // This function is generic and well-written.
-  const createCustomIcon = (priority: string | null | undefined) => {
-    const priorityColors: { [key: string]: string } = {
-      'low': '#eab308',
-      'medium': '#f97316',
-      'high': '#f43f5e',
-      'urgent': '#ef4444'
+
+  const createCustomIcon = (priority) => {
+    const priorityColors = {
+      'low': '#eab308',     // Yellow
+      'medium': '#f97316',  // Orange
+      'high': '#f43f5e',    // Rose / Dark Pink
+      'urgent': '#ef4444'   // Red
     };
 
-    const color = priority ? priorityColors[priority] : '#6b7280';
+    const color = priorityColors[priority] || '#6b7280';
     return window.L.divIcon({
-      // Updated class name for better semantics
-      className: 'custom-issue-marker',
+      className: 'custom-crime-marker',
       html: `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>`,
       iconSize: [28, 28],
       iconAnchor: [14, 14],
     });
   };
 
-  // --- Add/Update Issue Markers on Map ---
-  const addIssueMarkers = () => {
+
+  const addCrimeMarkers = () => {
     if (!map.current) return;
 
-    // Clear existing markers
-    issueMarkers.forEach(marker => map.current.removeLayer(marker));
+    crimeMarkers.forEach(marker => map.current.removeLayer(marker));
 
-    // Filter issues based on current state (priority and search query)
-    const filteredIssues = allIssues.filter(issue => {
-      const priorityMatch = selectedPriority === 'all' || issue.priority === selectedPriority;
+    const filteredCrimes = allCrimes.filter(crime => {
+      const priorityMatch = selectedPriority === 'all' || crime.priority === selectedPriority;
       const searchMatch = !searchQuery ||
-        (issue.title && issue.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (issue.description && issue.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        // Updated to use the correct nested object property
-        (issue.issue_categories && (issue.issue_categories as any).name.toLowerCase().includes(searchQuery.toLowerCase()));
+        (crime.title && crime.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (crime.description && crime.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (crime.crime_categories && crime.crime_categories.name.toLowerCase().includes(searchQuery.toLowerCase()));
       return priorityMatch && searchMatch;
     });
 
-    // Create and add new markers to the map
-    const newMarkers = filteredIssues.map((issue) => {
-      if (typeof issue.latitude !== 'number' || typeof issue.longitude !== 'number') {
-        console.warn('Skipping issue with invalid coordinates:', issue);
+    const newMarkers = filteredCrimes.map((crime) => {
+      // FIXED: Use 'latitude' and 'longitude'
+      if (typeof crime.latitude !== 'number' || typeof crime.longitude !== 'number') {
+        console.warn('Skipping crime with invalid coordinates:', crime);
         return null;
       }
-      const marker = window.L.marker([issue.latitude, issue.longitude], {
-        icon: createCustomIcon(issue.priority)
+      const marker = window.L.marker([crime.latitude, crime.longitude], {
+        icon: createCustomIcon(crime.priority)
       }).addTo(map.current);
       
-      // Updated popup content with new variable names and structure
       const popupContent = `
         <div style="font-family: system-ui, sans-serif; min-width: 200px;">
           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-            <h3 style="margin: 0; font-size: 16px; font-weight: bold;">${issue.title}</h3>
-            <span style="background-color: ${createCustomIcon(issue.priority).options.html.match(/background-color: (.*?);/)?.[1] || '#6b7280'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 10px; text-transform: uppercase; font-weight: bold;">
-              ${issue.priority || 'N/A'}
+            <h3 style="margin: 0; font-size: 16px; font-weight: bold;">${crime.title}</h3>
+            <span style="background-color: ${createCustomIcon(crime.priority).options.html.match(/background-color: (.*?);/)[1]}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 10px; text-transform: uppercase; font-weight: bold;">
+              ${crime.priority}
             </span>
           </div>
           <p style="margin: 0 0 4px 0; font-size: 14px; color: #374151; font-style: italic;">
-            Category: ${(issue.issue_categories as any).name}
+            Category: ${crime.crime_categories.name}
           </p>
-          <p style="margin: 0 0 6px 0; font-size: 14px; color: #374151;">${issue.description}</p>
+          <p style="margin: 0 0 6px 0; font-size: 14px; color: #374151;">${crime.description}</p>
           <div style="font-size: 12px; color: #6b7280;">
-            <div>📅 Reported: ${new Date(issue.created_at).toLocaleDateString()}</div>
+            <div>📅 Reported: ${new Date(crime.created_at).toLocaleDateString()}</div>
           </div>
         </div>
       `;
       marker.bindPopup(popupContent);
       return marker;
-    }).filter(Boolean); // Remove any nulls from invalid coordinates
+    }).filter(Boolean);
 
-    setIssueMarkers(newMarkers as any[]);
+    setCrimeMarkers(newMarkers);
   };
 
-  // --- Search Handler ---
-  // This attempts to geocode a location search. If it fails, it falls back to text filtering.
+
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
-      addIssueMarkers();
+      addCrimeMarkers();
       return;
     }
     try {
@@ -208,63 +188,41 @@ const IssueMap = () => {
         map.current.setView([parseFloat(lat), parseFloat(lon)], 14);
         setErrorMessage('');
       } else {
-        // If no location found, just filter by text
-        addIssueMarkers();
+        addCrimeMarkers();
       }
     } catch (error) {
       console.error('Search error:', error);
       setErrorMessage('Location search failed. Filtering by text instead.');
-      addIssueMarkers();
+      addCrimeMarkers();
     }
   };
-  
-  // --- Memoized Statistics ---
-  // Calculate statistics only when dependencies change for better performance.
-  const filteredStats = React.useMemo(() => {
-    const filtered = allIssues.filter(issue => {
-      const priorityMatch = selectedPriority === 'all' || issue.priority === selectedPriority;
-      const searchMatch = !searchQuery ||
-        (issue.title && issue.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (issue.description && issue.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (issue.issue_categories && (issue.issue_categories as any).name.toLowerCase().includes(searchQuery.toLowerCase()));
-      return priorityMatch && searchMatch;
-    });
-
-    return {
-      total: filtered.length,
-      high: filtered.filter(i => i.priority === 'high').length,
-      medium: filtered.filter(i => i.priority === 'medium').length,
-      low: filtered.filter(i => i.priority === 'low').length,
-      urgent: filtered.filter(i => i.priority === 'urgent').length,
-    };
-  }, [allIssues, selectedPriority, searchQuery]);
 
 
-  // --- Effects ---
   React.useEffect(() => {
     initializeMap();
-    // Cleanup function to remove the map instance when the component unmounts
     return () => {
       if (map.current) {
         map.current.remove();
         map.current = null;
       }
     };
-  }, []); // Empty dependency array ensures this runs only once
+  }, []);
+
 
   React.useEffect(() => {
     if (isMapLoaded) {
-      addIssueMarkers();
+      addCrimeMarkers();
     }
-  }, [selectedPriority, searchQuery, allIssues, isMapLoaded]);
+  }, [selectedPriority, searchQuery, allCrimes, isMapLoaded]);
 
-  // --- Render JSX ---
-  const priorityColors: { [key: string]: string } = {
-    low: '#eab308',
-    medium: '#f97316',
-    high: '#f43f5e',
-    urgent: '#ef4444'
-  };
+
+
+  const priorityColors = {
+  low: '#eab308',      // Yellow
+  medium: '#f97316',   // Orange
+  high: '#f43f5e',     // Rose
+  urgent: '#ef4444'    // Red
+};
 
   return (
     <div className="relative w-full h-full bg-gray-100">
@@ -291,9 +249,10 @@ const IssueMap = () => {
 
       {showFilters && (
         <div className="absolute top-16 right-4 z-[1000] bg-white p-4 rounded-lg shadow-lg w-56">
+
           <h4 className="font-semibold text-sm mb-3">Filter by Priority</h4>
           <div className="space-y-2">
-            {['all', 'urgent', 'high', 'medium', 'low'].map(priority => (
+            {['all', 'high', 'medium', 'low'].map(priority => (
               <label key={priority} className="flex items-center gap-2 text-sm cursor-pointer">
                 <input
                   type="radio"
@@ -316,8 +275,7 @@ const IssueMap = () => {
         <div className="absolute inset-0 flex items-center justify-center bg-gray-100/80 z-10">
           <div className="text-center">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-3"></div>
-            {/* Updated loading text */}
-            <p className="text-md text-gray-700">Loading Issue Map...</p>
+            <p className="text-md text-gray-700">Loading Crime Map...</p>
           </div>
         </div>
       )}
@@ -328,6 +286,9 @@ const IssueMap = () => {
           <span className="block sm:inline">{errorMessage}</span>
         </div>
       )}
+
+
+
 
       {isMapLoaded && (
         <div className="absolute bottom-4 left-4 bg-white/90 p-3 rounded-lg shadow-lg z-[1000] backdrop-blur-sm">
@@ -346,30 +307,32 @@ const IssueMap = () => {
         </div>
       )}
 
-      {/* Refactored statistics panel to use the memoized stats */}
       {isMapLoaded && (
         <div className="absolute bottom-4 right-4 bg-white/90 p-3 rounded-lg shadow-lg z-[1000] backdrop-blur-sm w-48">
           <h3 className="font-semibold text-sm mb-2">Filtered Statistics</h3>
           <div className="text-xs space-y-1">
             <div className="flex justify-between gap-4">
               <span>Total Displayed:</span>
-              <span className="font-medium">{filteredStats.total}</span>
-            </div>
-             <div className="flex justify-between gap-4">
-              <span>Urgent:</span>
-              <span className="font-medium text-red-600">{filteredStats.urgent}</span>
+              <span className="font-medium">{crimeMarkers.length}</span>
             </div>
             <div className="flex justify-between gap-4">
               <span>High Priority:</span>
-              <span className="font-medium text-rose-600">{filteredStats.high}</span>
+              <span className="font-medium text-red-600">
+                {crimeMarkers.filter(marker => allCrimes.find(c => c.id === marker.crimeId)?.priority === 'high').length}
+                {allCrimes.filter(c => c.priority === 'high' && (selectedPriority === 'all' || selectedPriority === 'high')).length}
+              </span>
             </div>
             <div className="flex justify-between gap-4">
               <span>Medium Priority:</span>
-              <span className="font-medium text-orange-600">{filteredStats.medium}</span>
+              <span className="font-medium text-orange-600">
+                {allCrimes.filter(c => c.priority === 'medium' && (selectedPriority === 'all' || selectedPriority === 'medium')).length}
+              </span>
             </div>
             <div className="flex justify-between gap-4">
               <span>Low Priority:</span>
-              <span className="font-medium text-yellow-600">{filteredStats.low}</span>
+              <span className="font-medium text-yellow-600">
+                {allCrimes.filter(c => c.priority === 'low' && (selectedPriority === 'all' || selectedPriority === 'low')).length}
+              </span>
             </div>
           </div>
         </div>
@@ -378,4 +341,4 @@ const IssueMap = () => {
   );
 };
 
-export default IssueMap;
+export default CrimeMap;
