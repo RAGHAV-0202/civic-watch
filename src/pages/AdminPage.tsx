@@ -2,6 +2,7 @@ import React from 'react';
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
+import AdminMap from "@/components/map/AdminMap";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { 
   Shield, 
@@ -18,14 +19,15 @@ import {
   Users, 
   AlertTriangle, 
   CheckCircle, 
-  XCircle,
   Clock,
   Eye,
   EyeOff,
-  Edit3,
   Trash2,
   Search,
-  Filter
+  MapPin,
+  Calendar,
+  User,
+  FileText
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -113,22 +115,44 @@ const AdminPage = () => {
 
   const fetchAllReports = async () => {
     try {
-      const { data, error } = await supabase
+      // First fetch the reports with categories
+      const { data: reportsData, error: reportsError } = await supabase
         .from('crime_reports')
         .select(`
           *,
           crime_categories (
             name,
             color
-          ),
-          profiles (
-            full_name
           )
         `)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setAllReports(data || []);
+      if (reportsError) throw reportsError;
+
+      // Then fetch profiles separately and merge the data
+      if (reportsData && reportsData.length > 0) {
+        const userIds = [...new Set(reportsData.map(report => report.user_id))];
+        
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('user_id, full_name')
+          .in('user_id', userIds);
+
+        if (profilesError) {
+          console.warn('Error fetching profiles:', profilesError);
+          // Continue without profile data
+        }
+
+        // Merge the data
+        const reportsWithProfiles = reportsData.map(report => ({
+          ...report,
+          profiles: profilesData?.find(profile => profile.user_id === report.user_id) || null
+        }));
+
+        setAllReports(reportsWithProfiles);
+      } else {
+        setAllReports([]);
+      }
     } catch (error) {
       console.error('Error fetching all reports:', error);
       toast({
@@ -359,11 +383,11 @@ const AdminPage = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'addressed': return 'bg-blue-100 text-blue-800';
-      case 'resolved': return 'bg-green-100 text-green-800';
-      case 'closed': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'pending': return 'bg-warning/20 text-warning border-warning/30';
+      case 'addressed': return 'bg-info/20 text-info border-info/30';
+      case 'resolved': return 'bg-success/20 text-success border-success/30';
+      case 'closed': return 'bg-muted/20 text-muted-foreground border-muted/30';
+      default: return 'bg-muted/20 text-muted-foreground border-muted/30';
     }
   };
 
@@ -380,84 +404,126 @@ const AdminPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
       <Navbar />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center gap-3 mb-8">
-          <Shield className="h-8 w-8 text-blue-600" />
-          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-          <Badge variant="secondary" className="ml-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-xl">
+              <Shield className="h-8 w-8 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                Admin Dashboard
+              </h1>
+              <p className="text-muted-foreground">Manage reports and monitor system activity</p>
+            </div>
+          </div>
+          <Badge variant="secondary" className="px-4 py-2">
+            <Users className="h-4 w-4 mr-2" />
             Administrator
           </Badge>
         </div>
 
+        {/* Analytics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card>
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/20 dark:to-blue-900/10">
             <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <BarChart3 className="h-5 w-5 text-blue-600" />
-                <span className="text-sm font-medium text-muted-foreground">Total Reports</span>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Reports</p>
+                  <p className="text-3xl font-bold text-blue-700 dark:text-blue-300">{analytics.totalReports}</p>
+                </div>
+                <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
+                  <FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                </div>
               </div>
-              <div className="text-2xl font-bold mt-2">{analytics.totalReports}</div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/20 dark:to-orange-900/10">
             <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <Clock className="h-5 w-5 text-orange-600" />
-                <span className="text-sm font-medium text-muted-foreground">Active Reports</span>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Active Reports</p>
+                  <p className="text-3xl font-bold text-orange-700 dark:text-orange-300">{analytics.activeReports}</p>
+                </div>
+                <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-xl">
+                  <Clock className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                </div>
               </div>
-              <div className="text-2xl font-bold mt-2">{analytics.activeReports}</div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/20 dark:to-red-900/10">
             <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <Flag className="h-5 w-5 text-red-600" />
-                <span className="text-sm font-medium text-muted-foreground">Flagged Reports</span>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-red-600 dark:text-red-400">Flagged Reports</p>
+                  <p className="text-3xl font-bold text-red-700 dark:text-red-300">{analytics.flaggedReports}</p>
+                </div>
+                <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-xl">
+                  <Flag className="h-6 w-6 text-red-600 dark:text-red-400" />
+                </div>
               </div>
-              <div className="text-2xl font-bold mt-2">{analytics.flaggedReports}</div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/20 dark:to-green-900/10">
             <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <Users className="h-5 w-5 text-green-600" />
-                <span className="text-sm font-medium text-muted-foreground">Categories</span>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-green-600 dark:text-green-400">Categories</p>
+                  <p className="text-3xl font-bold text-green-700 dark:text-green-300">{analytics.categoriesData.length}</p>
+                </div>
+                <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-xl">
+                  <BarChart3 className="h-6 w-6 text-green-600 dark:text-green-400" />
+                </div>
               </div>
-              <div className="text-2xl font-bold mt-2">{analytics.categoriesData.length}</div>
             </CardContent>
           </Card>
         </div>
 
-        <Tabs defaultValue="all-reports" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="all-reports">All Reports</TabsTrigger>
-            <TabsTrigger value="flagged">Flagged Reports</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        {/* Map Section */}
+        <div className="mb-8">
+          <AdminMap />
+        </div>
+
+        <Tabs defaultValue="reports-table" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="reports-table" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Reports Table
+            </TabsTrigger>
+            <TabsTrigger value="flagged" className="flex items-center gap-2">
+              <Flag className="h-4 w-4" />
+              Flagged Reports
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Analytics
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="all-reports" className="space-y-6">
-            <Card>
-              <CardHeader>
+          <TabsContent value="reports-table" className="space-y-6">
+            <Card className="border-0 shadow-lg">
+              <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b">
                 <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
-                  All Reports Management
+                  <FileText className="h-5 w-5" />
+                  Reports Management
                 </CardTitle>
                 <CardDescription>
-                  View, manage, and update the status of all reports in the system
+                  View and manage all reports with table interface
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 <div className="flex flex-col sm:flex-row gap-4 mb-6">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search reports by title, description, or category..."
+                      placeholder="Search reports..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-10"
@@ -485,63 +551,57 @@ const AdminPage = () => {
                     </AlertDescription>
                   </Alert>
                 ) : (
-                  <div className="space-y-4">
-                    {filteredReports.map((report) => (
-                      <Card key={report.id} className={`border-l-4 ${report.is_hidden ? 'border-l-red-500 opacity-60' : 'border-l-blue-500'}`}>
-                        <CardContent className="p-6">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <h3 className="font-semibold text-lg">{report.title}</h3>
-                                <Badge className={getStatusColor(report.status)}>
-                                  {report.status}
-                                </Badge>
-                                {report.is_flagged && (
-                                  <Badge variant="destructive">
-                                    {report.flag_count} flags
-                                  </Badge>
-                                )}
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead className="font-semibold">Title</TableHead>
+                          <TableHead className="font-semibold">Category</TableHead>
+                          <TableHead className="font-semibold">Reporter</TableHead>
+                          <TableHead className="font-semibold">Status</TableHead>
+                          <TableHead className="font-semibold">Date</TableHead>
+                          <TableHead className="font-semibold">Flags</TableHead>
+                          <TableHead className="font-semibold text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredReports.map((report) => (
+                          <TableRow key={report.id} className={`${report.is_hidden ? 'opacity-60 bg-destructive/5' : ''} hover:bg-muted/30 transition-colors`}>
+                            <TableCell>
+                              <div className="space-y-1">
+                                <div className="font-medium line-clamp-1">{report.title}</div>
+                                <div className="text-xs text-muted-foreground line-clamp-2">
+                                  {report.description}
+                                </div>
                                 {report.is_hidden && (
-                                  <Badge variant="secondary" className="flex items-center gap-1">
-                                    <EyeOff className="h-3 w-3" />
+                                  <Badge variant="secondary" className="text-xs">
+                                    <EyeOff className="h-3 w-3 mr-1" />
                                     Hidden
                                   </Badge>
                                 )}
                               </div>
-                              
-                              <p className="text-muted-foreground mb-3">{report.description}</p>
-                              
-                              <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
-                                <span>Category: {report.crime_categories?.name}</span>
-                                <span>•</span>
-                                <span>Reporter: {report.profiles?.full_name || 'Anonymous'}</span>
-                                <span>•</span>
-                                <span>Created: {new Date(report.created_at).toLocaleDateString()}</span>
-                                <span>•</span>
-                                <span>Priority: {report.priority}</span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <div 
+                                  className="w-3 h-3 rounded-full"
+                                  style={{ backgroundColor: report.crime_categories?.color }}
+                                />
+                                <span className="text-sm">{report.crime_categories?.name}</span>
                               </div>
-
-                              {report.resolution_notes && (
-                                <div className="mb-4 p-3 bg-muted rounded-lg">
-                                  <h4 className="font-medium mb-1">Resolution Notes:</h4>
-                                  <p className="text-sm text-muted-foreground">{report.resolution_notes}</p>
-                                </div>
-                              )}
-                            </div>
-                            
-                            <div className="flex flex-col gap-2 ml-4">
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <User className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-sm">{report.profiles?.full_name || 'Anonymous'}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
                               <Select 
                                 value={report.status} 
-                                onValueChange={(newStatus) => {
-                                  if (newStatus === 'resolved' || newStatus === 'closed') {
-                                    // Could add a dialog for resolution notes here
-                                    handleStatusChange(report.id, newStatus);
-                                  } else {
-                                    handleStatusChange(report.id, newStatus);
-                                  }
-                                }}
+                                onValueChange={(newStatus) => handleStatusChange(report.id, newStatus)}
                               >
-                                <SelectTrigger className="w-[140px]">
+                                <SelectTrigger className="w-[120px] h-8">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -551,39 +611,55 @@ const AdminPage = () => {
                                   <SelectItem value="closed">Closed</SelectItem>
                                 </SelectContent>
                               </Select>
-
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-sm">
+                                  {new Date(report.created_at).toLocaleDateString()}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {report.is_flagged ? (
+                                <Badge variant="destructive" className="text-xs">
+                                  {report.flag_count} flags
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">None</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button
-                                    variant="destructive"
+                                    variant="ghost"
                                     size="sm"
-                                    className="flex items-center gap-1"
+                                    className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                                   >
                                     <Trash2 className="h-4 w-4" />
-                                    Delete
                                   </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                   <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogTitle>Delete Report</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      This action cannot be undone. This will permanently delete the report
-                                      "{report.title}" and remove it from the system.
+                                      Are you sure you want to delete "{report.title}"? This action cannot be undone.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                     <AlertDialogAction onClick={() => handleDeleteReport(report.id)}>
-                                      Delete Report
+                                      Delete
                                     </AlertDialogAction>
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
                               </AlertDialog>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
                 )}
               </CardContent>
