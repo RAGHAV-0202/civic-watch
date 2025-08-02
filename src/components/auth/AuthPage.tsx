@@ -12,7 +12,7 @@ const AuthPage = () => {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">CivicWatch</h1>
-          <p className="text-white/80">Real-time crime reporting for safer communities</p>
+          <p className="text-white/80">Real-time issues reporting for communities</p>
         </div>
         
         <Card>
