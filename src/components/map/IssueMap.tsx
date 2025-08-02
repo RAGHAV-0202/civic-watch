@@ -1,324 +1,303 @@
 import React from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useAuth } from "@/hooks/useAuth";
+import CivicMap from "@/components/map/IssueMap";
+import Navbar from "@/components/layout/Navbar";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Construction, Lightbulb, Droplets, Trash2, Shield, TreePine } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-const CrimeMap = () => {
-  const mapContainer = React.useRef(null);
-  const map = React.useRef(null);
-  const [isMapLoaded, setIsMapLoaded] = React.useState(false);
-  const [searchQuery, setSearchQuery] = React.useState('');
-  const [showFilters, setShowFilters] = React.useState(false);
-  const [selectedPriority, setSelectedPriority] = React.useState('all');
-  const [crimeMarkers, setCrimeMarkers] = React.useState([]);
-  const [allCrimes, setAllCrimes] = React.useState([]);
-  const [errorMessage, setErrorMessage] = React.useState('');
-
-  const fetchCrimes = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('crime_reports')
-        .select(`
-          *,
-          crime_categories (
-            name
-          )
-        `);
-
-      if (error) {
-        throw error;
-      }
-
-      if (data) {
-        setAllCrimes(data);
-        setErrorMessage('');
-      }
-    } catch (error) {
-      console.error('Error fetching crime data:', error);
-      setErrorMessage('Failed to fetch crime data. Please try again later.');
-    }
-  };
-
-  const loadLeafletResources = () => {
-    return new Promise((resolve) => {
-      if (window.L) {
-        resolve(true);
-        return;
-      }
-      const cssLink = document.createElement('link');
-      cssLink.rel = 'stylesheet';
-      cssLink.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(cssLink);
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.onload = () => resolve(true);
-      document.head.appendChild(script);
-    });
-  };
-
-  const initializeMap = async () => {
-    if (!mapContainer.current || map.current) return;
-
-    await loadLeafletResources();
-    await fetchCrimes();
-
-    map.current = window.L.map(mapContainer.current).setView([24.5937, 78.9629], 4);
-
-    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      maxZoom: 19,
-    }).addTo(map.current);
-
-    const geolocateControl = window.L.control({ position: 'topright' });
-    geolocateControl.onAdd = function () {
-      const div = window.L.DomUtil.create('div', 'leaflet-bar leaflet-control bg-white p-2 rounded-md shadow-md cursor-pointer');
-      div.innerHTML = '📍';
-      div.title = 'Find my location';
-      div.onclick = function (e) {
-        e.stopPropagation();
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition((position) => {
-            const { latitude, longitude } = position.coords;
-            map.current.setView([latitude, longitude], 15);
-            map.current.eachLayer(layer => {
-              if (layer.options.isUserLocation) map.current.removeLayer(layer);
-            });
-            window.L.marker([latitude, longitude], { isUserLocation: true })
-              .addTo(map.current)
-              .bindPopup('<b>You are here</b>')
-              .openPopup();
-          }, () => {
-            setErrorMessage('Unable to get your location. Please check browser settings.');
-          });
-        } else {
-          setErrorMessage('Geolocation is not supported by this browser.');
-        }
-      };
-      return div;
-    };
-    geolocateControl.addTo(map.current);
-    setIsMapLoaded(true);
-  };
-
-  const createCustomIcon = (priority) => {
-    const priorityColors = {
-      'low': '#eab308',
-      'medium': '#f97316',
-      'high': '#f43f5e',
-      'urgent': '#ef4444'
-    };
-
-    const color = priorityColors[priority] || '#6b7280';
-    return window.L.divIcon({
-      className: 'custom-crime-marker',
-      html: `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>`,
-      iconSize: [28, 28],
-      iconAnchor: [14, 14],
-    });
-  };
-
-  const addCrimeMarkers = () => {
-    if (!map.current) return;
-
-    crimeMarkers.forEach(marker => map.current.removeLayer(marker));
-
-    const filteredCrimes = allCrimes.filter(crime => {
-      const priorityMatch = selectedPriority === 'all' || crime.priority === selectedPriority;
-      const searchMatch = !searchQuery ||
-        (crime.title && crime.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (crime.description && crime.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (crime.crime_categories && crime.crime_categories.name.toLowerCase().includes(searchQuery.toLowerCase()));
-      return priorityMatch && searchMatch;
-    });
-
-    const newMarkers = filteredCrimes.map((crime) => {
-      if (typeof crime.latitude !== 'number' || typeof crime.longitude !== 'number') {
-        console.warn('Skipping crime with invalid coordinates:', crime);
-        return null;
-      }
-      const marker = window.L.marker([crime.latitude, crime.longitude], {
-        icon: createCustomIcon(crime.priority)
-      }).addTo(map.current);
-      
-      const popupContent = `
-        <div style="font-family: system-ui, sans-serif; min-width: 200px;">
-          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-            <h3 style="margin: 0; font-size: 16px; font-weight: bold;">${crime.title}</h3>
-            <span style="background-color: ${createCustomIcon(crime.priority).options.html.match(/background-color: (.*?);/)[1]}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 10px; text-transform: uppercase; font-weight: bold;">
-              ${crime.priority}
-            </span>
-          </div>
-          <p style="margin: 0 0 4px 0; font-size: 14px; color: #374151; font-style: italic;">
-            Category: ${crime.crime_categories.name}
-          </p>
-          <p style="margin: 0 0 6px 0; font-size: 14px; color: #374151;">${crime.description}</p>
-          <div style="font-size: 12px; color: #6b7280;">
-            <div>📅 Reported: ${new Date(crime.created_at).toLocaleDateString()}</div>
-          </div>
-        </div>
-      `;
-      marker.bindPopup(popupContent);
-      return marker;
-    }).filter(Boolean);
-
-    setCrimeMarkers(newMarkers);
-  };
-
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      addCrimeMarkers();
-      return;
-    }
-    try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`);
-      const data = await response.json();
-      if (data && data.length > 0) {
-        const { lat, lon } = data[0];
-        map.current.setView([parseFloat(lat), parseFloat(lon)], 14);
-        setErrorMessage('');
-      } else {
-        addCrimeMarkers();
-      }
-    } catch (error) {
-      console.error('Search error:', error);
-      setErrorMessage('Location search failed. Filtering by text instead.');
-      addCrimeMarkers();
-    }
-  };
+const Index = () => {
+  const { user } = useAuth();
+  const [stats, setStats] = React.useState([
+    { icon: Construction, label: "Active Reports", value: "0", color: "text-orange-600" },
+    { icon: Shield, label: "Resolved Issues", value: "0", color: "text-green-600" },
+    { icon: Lightbulb, label: "Community Members", value: "0", color: "text-blue-600" },
+    { icon: Droplets, label: "Response Rate", value: "0%", color: "text-green-600" },
+  ]);
+  const [recentReports, setRecentReports] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    initializeMap();
-    return () => {
-      if (map.current) {
-        map.current.remove();
-        map.current = null;
-      }
-    };
+    fetchData();
   }, []);
 
   React.useEffect(() => {
     if (isMapLoaded) {
       addCrimeMarkers();
-    }
-  }, [selectedPriority, searchQuery, allCrimes, isMapLoaded]);
+  const fetchData = async () => {
+    try {
+      const [reportsResponse, statsResponse, usersResponse] = await Promise.all([
+        supabase
+          .from('crime_reports')
+          .select(`
+            *,
+            crime_categories (
+              name
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .limit(4),
+        
+        supabase
+          .from('crime_reports')
+          .select('status')
+          .in('status', ['active', 'resolved']),
+        
+        supabase
+          .from('profiles')
+          .select('id', { count: 'exact' })
+      ]);
 
-  const priorityColors = {
-    low: '#eab308',
-    medium: '#f97316',
-    high: '#f43f5e',
-    urgent: '#ef4444'
+      if (reportsResponse.data) {
+        const formattedReports = reportsResponse.data.map(report => ({
+          type: report.crime_categories?.name || 'General',
+          location: report.location || 'Unknown Location',
+          time: formatTimeAgo(report.created_at),
+          priority: report.priority || 'medium',
+          icon: getCategoryIcon(report.crime_categories?.name)
+        }));
+        setRecentReports(formattedReports);
+      }
+
+      if (statsResponse.data) {
+        const activeCount = statsResponse.data.filter(r => r.status === 'active').length;
+        const resolvedCount = statsResponse.data.filter(r => r.status === 'resolved').length;
+        const totalReports = statsResponse.data.length;
+        const responseRate = totalReports > 0 ? Math.round((resolvedCount / totalReports) * 100) : 0;
+
+        setStats([
+          { icon: Construction, label: "Active Reports", value: activeCount.toString(), color: "text-orange-600" },
+          { icon: Shield, label: "Resolved Issues", value: resolvedCount.toString(), color: "text-green-600" },
+          { icon: Lightbulb, label: "Community Members", value: (usersResponse.count || 0).toString(), color: "text-blue-600" },
+          { icon: Droplets, label: "Response Rate", value: `${responseRate}%`, color: "text-green-600" },
+        ]);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const formatTimeAgo = (dateString) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return 'Less than an hour ago';
+    if (diffInHours === 1) return '1 hour ago';
+    if (diffInHours < 24) return `${diffInHours} hours ago`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays === 1) return '1 day ago';
+    return `${diffInDays} days ago`;
+  };
+
+  const getCategoryIcon = (categoryName) => {
+    const iconMap = {
+      'Roads': '🚧',
+      'Lighting': '💡',
+      'Water Supply': '💧',
+      'Cleanliness': '🗑️',
+      'Public Safety': '⚠️',
+      'Obstructions': '🌳'
+    };
+    return iconMap[categoryName] || '📍';
+  };
+
+  const civicCategories = [
+    {
+      name: "Roads",
+      description: "Potholes, obstructions, damaged roads",
+      icon: "🚧",
+      color: "red",
+      bgColor: "bg-red-50",
+      borderColor: "border-red-200",
+      textColor: "text-red-800",
+      descColor: "text-red-700"
+    },
+    {
+      name: "Lighting",
+      description: "Broken or flickering street lights",
+      icon: "💡",
+      color: "yellow",
+      bgColor: "bg-yellow-50",
+      borderColor: "border-yellow-200",
+      textColor: "text-yellow-800",
+      descColor: "text-yellow-700"
+    },
+    {
+      name: "Water Supply",
+      description: "Leaks, low pressure, pipe issues",
+      icon: "💧",
+      color: "blue",
+      bgColor: "bg-blue-50",
+      borderColor: "border-blue-200",
+      textColor: "text-blue-800",
+      descColor: "text-blue-700"
+    },
+    {
+      name: "Cleanliness",
+      description: "Overflowing bins, garbage, sanitation",
+      icon: "🗑️",
+      color: "green",
+      bgColor: "bg-green-50",
+      borderColor: "border-green-200",
+      textColor: "text-green-800",
+      descColor: "text-green-700"
+    }
+  ];
+
   return (
-    <div className="relative w-full h-full bg-gray-100">
-      <div className="absolute top-4 left-4 right-4 z-[1000] flex flex-col sm:flex-row gap-2">
-        <div className="flex-1 max-w-lg">
-          <div className="flex gap-1 bg-white rounded-lg shadow-lg overflow-hidden">
-            <Input
-              type="text"
-              placeholder="Search location, title, category..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              className="border-0 focus-visible:ring-0 text-base"
-            />
-            <Button onClick={handleSearch} variant="ghost" size="icon" className="px-3">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            </Button>
-          </div>
-        </div>
-        <Button onClick={() => setShowFilters(!showFilters)} variant="outline" className="bg-white shadow-lg">
-          Filters
-        </Button>
-      </div>
-
-      {showFilters && (
-        <div className="absolute top-16 right-4 z-[1000] bg-white p-4 rounded-lg shadow-lg w-56">
-          <h4 className="font-semibold text-sm mb-3">Filter by Priority</h4>
-          <div className="space-y-2">
-            {['all', 'high', 'medium', 'low'].map(priority => (
-              <label key={priority} className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="radio"
-                  name="priority"
-                  value={priority}
-                  checked={selectedPriority === priority}
-                  onChange={(e) => setSelectedPriority(e.target.value)}
-                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
-                />
-                <span className="capitalize">{priority === 'all' ? 'All Priorities' : `${priority}`}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div ref={mapContainer} className="absolute inset-0 z-0" />
+    <div className="min-h-screen bg-background">
+      <Navbar />
       
-      {!isMapLoaded && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-100/80 z-10">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-3"></div>
-            <p className="text-md text-gray-700">Loading Crime Map...</p>
-          </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-blue-600 via-green-500 to-orange-500 bg-clip-text text-transparent">
+            CivicConnect
+          </h1>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            Report infrastructure issues and help improve your community. From potholes to broken streetlights, make your voice heard.
+          </p>
         </div>
-      )}
 
-      {errorMessage && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg z-[1000]" role="alert">
-          <strong className="font-bold">Error: </strong>
-          <span className="block sm:inline">{errorMessage}</span>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+          {stats.map((stat, index) => (
+            <Card key={index} className="hover:shadow-lg transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-center space-x-2">
+                  <stat.icon className={`h-5 w-5 ${stat.color}`} />
+                  <span className="text-sm font-medium text-muted-foreground">{stat.label}</span>
+                </div>
+                <div className="text-2xl font-bold mt-2">
+                  {loading ? (
+                    <div className="animate-pulse bg-gray-200 h-8 w-16 rounded"></div>
+                  ) : (
+                    stat.value
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      )}
 
-      {isMapLoaded && (
-        <div className="absolute bottom-4 left-4 bg-white/90 p-3 rounded-lg shadow-lg z-[1000] backdrop-blur-sm">
-          <h3 className="font-semibold text-sm mb-2">Priority Legend</h3>
-          <div className="space-y-1 text-xs">
-            {['urgent', 'high', 'medium', 'low'].map(priority => (
-              <div key={priority} className="flex items-center gap-2">
-                <div
-                  className="w-4 h-4 rounded-full border-2 border-white"
-                  style={{ backgroundColor: priorityColors[priority] }}
-                ></div>
-                <span className="capitalize">{priority}</span>
+        <Card className="mb-8">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Live Infrastructure Issues Map</CardTitle>
+                <CardDescription>
+                  Real-time civic issues in your area. Click on markers for details and updates.
+                </CardDescription>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+              <div className="flex space-x-2">
+                <Badge variant="destructive">Urgent</Badge>
+                <Badge variant="outline" className="text-orange-600 border-orange-600">High</Badge>
+                <Badge variant="outline" className="text-blue-600 border-blue-600">Medium</Badge>
+                <Badge variant="outline" className="text-green-600 border-green-600">Low</Badge>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[600px]">
+              <CivicMap />
+            </div>
+          </CardContent>
+        </Card>
 
-      {isMapLoaded && (
-        <div className="absolute bottom-4 right-4 bg-white/90 p-3 rounded-lg shadow-lg z-[1000] backdrop-blur-sm w-48">
-          <h3 className="font-semibold text-sm mb-2">Filtered Statistics</h3>
-          <div className="text-xs space-y-1">
-            <div className="flex justify-between gap-4">
-              <span>Total Displayed:</span>
-              <span className="font-medium">{crimeMarkers.length}</span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span>High Priority:</span>
-              <span className="font-medium text-red-600">
-                {allCrimes.filter(c => c.priority === 'high' && (selectedPriority === 'all' || selectedPriority === 'high')).length}
-              </span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span>Medium Priority:</span>
-              <span className="font-medium text-orange-600">
-                {allCrimes.filter(c => c.priority === 'medium' && (selectedPriority === 'all' || selectedPriority === 'medium')).length}
-              </span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span>Low Priority:</span>
-              <span className="font-medium text-yellow-600">
-                {allCrimes.filter(c => c.priority === 'low' && (selectedPriority === 'all' || selectedPriority === 'low')).length}
-              </span>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Reports</CardTitle>
+              <CardDescription>Latest infrastructure issues reported by the community</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {loading ? (
+                <div className="space-y-3">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="animate-pulse flex items-center space-x-3 p-3">
+                      <div className="w-8 h-8 bg-gray-200 rounded"></div>
+                      <div className="flex-1">
+                        <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                        <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : recentReports.length > 0 ? (
+                recentReports.map((report, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <span className="text-lg">{report.icon}</span>
+                      <div>
+                        <div className="font-medium">{report.type}</div>
+                        <div className="text-sm text-muted-foreground">{report.location}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <Badge 
+                        variant={report.priority === "urgent" || report.priority === "high" ? "destructive" : "outline"}
+                        className={
+                          report.priority === "medium" ? "text-orange-600 border-orange-600" : 
+                          report.priority === "low" ? "text-green-600 border-green-600" : ""
+                        }
+                      >
+                        {report.priority}
+                      </Badge>
+                      <div className="text-sm text-muted-foreground mt-1">{report.time}</div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center text-muted-foreground py-8">
+                  No recent reports found
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle>Issue Categories</CardTitle>
+              <CardDescription>Common infrastructure problems you can report</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {civicCategories.map((category, index) => (
+                <div key={index} className={`p-4 rounded-lg ${category.bgColor} ${category.borderColor} border`}>
+                  <h4 className={`font-medium ${category.textColor} mb-2 flex items-center space-x-2`}>
+                    <span>{category.icon}</span>
+                    <span>{category.name}</span>
+                  </h4>
+                  <p className={`text-sm ${category.descColor}`}>{category.description}</p>
+                </div>
+              ))}
+              <div className="text-center pt-2">
+                <Badge variant="outline" className="text-muted-foreground">
+                  +2 more categories available
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      )}
+
+        <Card className="mt-8 bg-gradient-to-r from-blue-50 to-green-50 border-0">
+          <CardContent className="p-8 text-center">
+            <h3 className="text-2xl font-bold mb-2">Make a Difference in Your Community</h3>
+            <p className="text-muted-foreground mb-4">
+              Every report helps improve infrastructure and quality of life for everyone.
+            </p>
+            <div className="flex justify-center space-x-4">
+              <Badge variant="outline" className="px-3 py-1">📍 Location-based reporting</Badge>
+              <Badge variant="outline" className="px-3 py-1">📱 Mobile-friendly</Badge>
+              <Badge variant="outline" className="px-3 py-1">🔒 Anonymous options</Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
 
-export default CrimeMap;
+export default Index;
