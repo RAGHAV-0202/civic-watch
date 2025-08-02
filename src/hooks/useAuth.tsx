@@ -36,21 +36,35 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setUser(session?.user ?? null);
         setLoading(false);
         
-        // Create profile after successful signup
+        // Create profile after successful signup (only if no profile exists)
         if (event === 'SIGNED_IN' && session?.user && session.user.user_metadata?.full_name) {
           setTimeout(async () => {
-            const userData = session.user.user_metadata;
-            const { error } = await supabase
-              .from('profiles')
-              .insert({
-                user_id: session.user.id,
-                full_name: userData.full_name,
-                phone: userData.phone,
-                role: userData.role || 'citizen'
-              });
-            
-            if (error) {
-              console.error('Error creating profile:', error);
+            try {
+              // First check if profile already exists
+              const { data: existingProfile } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('user_id', session.user.id)
+                .single();
+              
+              // Only create profile if it doesn't exist
+              if (!existingProfile) {
+                const userData = session.user.user_metadata;
+                const { error } = await supabase
+                  .from('profiles')
+                  .insert({
+                    user_id: session.user.id,
+                    full_name: userData.full_name,
+                    phone: userData.phone || '',
+                    role: userData.role || 'citizen'
+                  });
+                
+                if (error && error.code !== '23505') { // Ignore duplicate key errors
+                  console.error('Error creating profile:', error);
+                }
+              }
+            } catch (error) {
+              console.error('Error in profile creation:', error);
             }
           }, 0);
         }
@@ -68,9 +82,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error("Error signing out:", error);
+    try {
+      // Clear local state first
+      setUser(null);
+      setSession(null);
+      
+      // Then attempt to sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("Error signing out:", error);
+        // Even if Supabase signOut fails, we've cleared local state
+        // Force a page reload to ensure clean state
+        window.location.href = '/';
+      }
+    } catch (err) {
+      console.error("Unexpected error during signout:", err);
+      // Force reload on any error
+      window.location.href = '/';
     }
   };
 

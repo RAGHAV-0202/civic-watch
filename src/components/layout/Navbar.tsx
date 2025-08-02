@@ -63,14 +63,14 @@ const Navbar = () => {
                        </Link>
                      </DropdownMenuItem>
                      
-                     {userRole === 'admin' && (
-                       <DropdownMenuItem asChild>
-                         <Link to="/admin" className="flex items-center space-x-2 cursor-pointer">
-                           <Shield className="h-4 w-4" />
-                           <span>Admin Panel</span>
-                         </Link>
-                       </DropdownMenuItem>
-                     )}
+                      {(userRole === 'admin' || userRole === 'officer') && (
+                        <DropdownMenuItem asChild>
+                          <Link to="/admin" className="flex items-center space-x-2 cursor-pointer">
+                            <Shield className="h-4 w-4" />
+                            <span>Admin Panel</span>
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
 
                      <DropdownMenuSeparator />
                      
