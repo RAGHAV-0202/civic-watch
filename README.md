@@ -1,6 +1,8 @@
 # CrimeWatch - Community Safety Reporting Platform
 React TypeScript Supabase
 
+https://civicwatch.netlify.app/
+
 A full-stack community safety reporting platform with real-time crime mapping, administrative dashboard, and notification system, built with React, TypeScript, and Supabase.
 
 🌟 Features
