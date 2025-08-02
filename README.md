@@ -1,4 +1,4 @@
-# CrimeWatch - Community Safety Reporting Platform
+# CivicWatch - Community Safety Reporting Platform
 React TypeScript Supabase
 
 https://civicwatch.netlify.app/
