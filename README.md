@@ -1,73 +1,247 @@
-# Welcome to your Lovable project
+# CrimeWatch - Community Safety Reporting Platform
+React TypeScript Supabase
 
-## Project info
+A full-stack community safety reporting platform with real-time crime mapping, administrative dashboard, and notification system, built with React, TypeScript, and Supabase.
 
-**URL**: https://lovable.dev/projects/38add1ae-b704-46bb-afaa-fbfe3f98385d
+🌟 Features
 
-## How can I edit this code?
+## Core Features
 
-There are several ways of editing your application.
+### User Authentication & Authorization
+- Supabase Auth integration with email/password
+- Role-based access control (User, Admin, Officer)
+- Protected routes and middleware verification
+- Anonymous reporting option
 
-**Use Lovable**
+### Crime Reporting System
+- Submit detailed crime reports with location data
+- Category-based crime classification
+- File upload support for evidence
+- Anonymous and identified reporting options
+- Report status tracking
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/38add1ae-b704-46bb-afaa-fbfe3f98385d) and start prompting.
+### Interactive Crime Mapping
+- Real-time crime visualization with Leaflet maps
+- Location-based report clustering
+- Interactive markers with detailed report information
+- Administrative map view for officers
 
-Changes made via Lovable will be committed automatically to this repo.
+### Administrative Dashboard
+- Comprehensive admin panel with analytics
+- Report management and status updates
+- User management tools
+- Flag management system for inappropriate content
 
-**Use your preferred IDE**
+### Notification System
+- Email notifications for report status updates
+- Automated alerts via Supabase Edge Functions
+- Admin notifications for new reports
+- Real-time status change notifications
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Advanced Analytics
+- Crime trend analysis and reporting
+- Geographic crime distribution
+- Status tracking and metrics
+- Custom dashboard widgets
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Technical Features
+- Responsive design with dark/light mode support
+- Real-time data synchronization
+- Optimistic UI updates
+- Error handling and loading states
+- SEO-optimized routing
 
-Follow these steps:
+🛠️ Tech Stack
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## Frontend
+- **React 18** - Frontend library
+- **TypeScript** - Type-safe development
+- **Vite** - Build tool and development server
+- **Tailwind CSS** - Utility-first CSS framework
+- **shadcn/ui** - Modern UI component library
+- **React Router** - Client-side routing
+- **React Hook Form** - Form management
+- **Leaflet** - Interactive maps
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## Backend & Infrastructure
+- **Supabase** - Backend-as-a-Service
+- **PostgreSQL** - Primary database
+- **Row Level Security (RLS)** - Database security
+- **Supabase Auth** - Authentication system
+- **Supabase Storage** - File storage
+- **Supabase Edge Functions** - Serverless functions
+- **Resend** - Email delivery service
 
-# Step 3: Install the necessary dependencies.
-npm i
+## Development Tools
+- **ESLint** - Code linting
+- **PostCSS** - CSS processing
+- **TypeScript** - Static type checking
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+📋 Database Schema
+
+### Core Tables
+```sql
+-- User profiles
+profiles (id, user_id, full_name, avatar_url, created_at, updated_at)
+
+-- Crime reports
+crime_reports (id, user_id, title, description, location, status, category_id, is_anonymous, created_at, updated_at)
+
+-- Crime categories
+crime_categories (id, name, description, icon, color)
+
+-- Report flags
+report_flags (id, report_id, user_id, reason, status, created_at)
 ```
 
-**Edit a file directly in GitHub**
+### Key Features
+- Row Level Security (RLS) policies for data protection
+- Automated timestamp triggers
+- Geographic data support for location mapping
+- File storage integration for evidence uploads
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+🚀 Installation & Setup
 
-**Use GitHub Codespaces**
+## Prerequisites
+- Node.js (v18 or higher)
+- npm or yarn
+- Supabase account
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Supabase Setup
 
-## What technologies are used for this project?
+1. **Create a new Supabase project**
+   - Visit [supabase.com](https://supabase.com)
+   - Create a new project
+   - Save your project URL and API keys
 
-This project is built with:
+2. **Run database migrations**
+```bash
+npx supabase db reset
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+3. **Deploy Edge Functions**
+```bash
+npx supabase functions deploy send-status-notification
+```
 
-## How can I deploy this project?
+4. **Configure Environment Variables**
 
-Simply open [Lovable](https://lovable.dev/projects/38add1ae-b704-46bb-afaa-fbfe3f98385d) and click on Share -> Publish.
+In your Supabase dashboard, add the following environment variables:
+```
+RESEND_API_KEY=your_resend_api_key
+```
 
-## Can I connect a custom domain to my Lovable project?
+## Email Setup (Resend)
 
-Yes, you can!
+1. Sign up at [resend.com](https://resend.com)
+2. Get your API key
+3. Add the API key to your Supabase Edge Function environment variables
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+📁 Project Structure
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+```
+crimewatch/
+│
+├── public/
+│   ├── favicon.ico
+│   └── robots.txt
+│
+├── src/
+│   ├── components/
+│   │   ├── auth/
+│   │   │   ├── AuthForm.tsx
+│   │   │   └── AuthPage.tsx
+│   │   ├── layout/
+│   │   │   └── Navbar.tsx
+│   │   ├── map/
+│   │   │   ├── AdminMap.tsx
+│   │   │   ├── CrimeMap.tsx
+│   │   │   └── IssueMap.tsx
+│   │   └── ui/
+│   │       └── [shadcn components]
+│   ├── hooks/
+│   │   ├── useAuth.tsx
+│   │   └── use-toast.ts
+│   ├── integrations/
+│   │   └── supabase/
+│   │       ├── client.ts
+│   │       └── types.ts
+│   ├── lib/
+│   │   └── utils.ts
+│   ├── pages/
+│   │   ├── AdminPage.tsx
+│   │   ├── Index.tsx
+│   │   ├── ProfilePage.tsx
+│   │   └── ReportIssuePage.tsx
+│   ├── types/
+│   │   └── leaflet.d.ts
+│   ├── App.tsx
+│   ├── index.css
+│   └── main.tsx
+│
+├── supabase/
+│   ├── functions/
+│   │   └── send-status-notification/
+│   │       └── index.ts
+│   ├── migrations/
+│   └── config.toml
+│
+├── tailwind.config.ts
+├── vite.config.ts
+└── package.json
+```
+
+🔧 Configuration
+
+## Available Scripts
+
+```bash
+# Development
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run preview      # Preview production build
+
+# Linting
+npm run lint         # Run ESLint
+
+# Supabase
+npx supabase start   # Start local Supabase
+npx supabase db reset # Reset database with migrations
+npx supabase functions deploy # Deploy edge functions
+```
+
+## Environment Variables
+
+```env
+# Required
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Edge Functions (Supabase Dashboard)
+RESEND_API_KEY=your_resend_api_key
+```
+
+🚦 Features Roadmap
+
+- [ ] Real-time chat for community discussions
+- [ ] Push notifications for mobile devices
+- [ ] Advanced reporting analytics
+- [ ] Integration with local law enforcement APIs
+- [ ] Multi-language support
+- [ ] Mobile app development
+
+
+
+📧 Contact
+
+Project Link: [GitHub](https://github.com/RAGHAV-0202/civic-watch))
+
+🙏 Acknowledgements
+
+- [React](https://reactjs.org/)
+- [Supabase](https://supabase.com/)
+- [Tailwind CSS](https://tailwindcss.com/)
+- [shadcn/ui](https://ui.shadcn.com/)
+- [Leaflet](https://leafletjs.com/)
+- [Resend](https://resend.com/)
+- [Vite](https://vitejs.dev/)
